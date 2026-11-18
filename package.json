@@ -1,0 +1,11 @@
+{
+  "name": "void-runner",
+  "version": "1.0.0",
+  "description": "Wave-based space survival shooter",
+  "private": true,
+  "scripts": {
+    "test": "node tests/harness.js src/game.js",
+    "lint": "node -c src/game.js && echo \"PASS: syntax OK\"",
+    "dev": "python3 -m http.server 8899 --directory ."
+  }
+}
