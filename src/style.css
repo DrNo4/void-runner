@@ -1,0 +1,32 @@
+* { margin:0; padding:0; box-sizing:border-box }
+html,body { width:100%; height:100%; overflow:hidden; background:#0a0a12; font-family:'Courier New',monospace; user-select:none; cursor:crosshair }
+#gw { position:relative; width:100%; height:100%; display:flex; align-items:center; justify-content:center }
+#c { image-rendering:pixelated; pointer-events:none }
+#co { position:absolute; top:0; left:0; width:100%;height:100%; pointer-events:none; z-index:10 }
+.sl { position:absolute; top:0; left:0; width:100%;height:100%; background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.08) 2px,rgba(0,0,0,0.08) 4px) }
+.vg { position:absolute; top:0; left:0; width:100%;height:100%; background:radial-gradient(ellipse at center,transparent 40%,rgba(0,0,0,0.6) 100%) }
+#uo { position:absolute; top:0; left:0; width:100%;height:100%; z-index:20; display:flex; align-items:center; justify-content:center }
+#dm { display:none; position:absolute; bottom:20px;left:20px;background:rgba(0,0,0,0.92);border:1px solid #0fa;color:#0fa;padding:15px;font-size:13px;z-index:100;min-width:280px;font-family:'Courier New',monospace }
+#dm h3 { margin-bottom:6px;font-size:15px;color:#4ff }
+.dmb { display:block;width:100%;margin:3px 0;padding:5px 10px;background:transparent;border:1px solid #0fa;color:#0fa;cursor:pointer;font-family:inherit;font-size:12px }
+.dmb:hover { background:rgba(0,255,170,0.2) }
+.dmi { background:#111;border:1px solid #0fa;color:#0fa;padding:3px;width:60px;font-family:inherit;font-size:12px }
+.dms { background:#111;border:1px solid #0fa;color:#0fa;padding:3px;font-family:inherit;font-size:12px;width:100%;margin:2px 0 }
+.dlr { display:flex;gap:5px;margin:4px 0;align-items:center }
+.dialog { max-width:600px;padding:30px;background:rgba(8,8,30,0.96);border:1px solid #40a;border-radius:8px;text-align:center }
+.dialog h1 { font-size:48px;color:#f0f;margin-bottom:10px;text-shadow:0 0 20px #f0f,0 0 40px #a0f }
+.dialog h2 { font-size:36px;color:#f0f;margin-bottom:12px;text-shadow:0 0 15px #f0f }
+.dialog h3 { color:#aaa;font-size:14px;margin-bottom:10px }
+.dialog p { color:#aaa;font-size:13px;margin-bottom:6px }
+.dialog .stat { color:#f0f;font-size:16px }
+.btn-row { display:flex;gap:15px;justify-content:center;margin-top:18px }
+.btn-row .dmb { width:200px }
+.btn-row .dmb.sm { width:120px }
+.upg-grid { display:grid;grid-template-columns:1fr 1fr;gap:8px;text-align:left;margin:10px 0 }
+.upg-card { background:#111;border:1px solid #333;padding:10px }
+.upg-name { color:#4ff;font-size:12px }
+.upg-desc { color:#888;font-size:10px;margin:2px 0 6px }
+.spec-grid { display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:10px 0 }
+.spec-card { background:#111;border:1px solid #333;padding:10px }
+.spec-name { color:#4ff;font-size:12px }
+.spec-desc { color:#888;font-size:10px;margin:2px 0 }

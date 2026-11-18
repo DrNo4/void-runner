@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VOID RUNNER</title>
+<link rel="stylesheet" href="src/style.css">
+</head>
+<body>
+<div id="gw"><canvas id="c"></canvas></div>
+<div id="co"><div class="sl"></div><div class="vg"></div></div>
+<div id="uo"></div>
+<div id="dm">
+<h3>DEBUG (F2)</h3>
+<button class="dmb" onclick="dbCl()">Close</button>
+<div class="dlr"><label>Sector <input class="dmi" id="ds" value="1" min="1" max="30"></label><button class="dmb" onclick="dbGo()">Go</button></div>
+<div class="dlr"><label>Enemy <select class="dms" id="de"><option value="scout">Scout</option><option value="raider">Raider</option><option value="cruiser">Cruiser</option><option value="cannon">Cannon</option><option value="swarm">Swarm</option><option value="dreadnought">Dreadnought</option><option value="boss1">Boss 1</option><option value="boss2">Boss 2</option><option value="boss3">Boss 3</option></select></label><button class="dmb" onclick="dbSp()">Spawn</button></div>
+<div class="dlr"><label>Credits <input class="dmi" id="dc" value="100"></label><button class="dmb" onclick="dbAC()">Add</button></div>
+<br><button class="dmb" onclick="dbCE()">Clear Enemies</button><button class="dmb" onclick="dbCB()">Clear Bullets</button><button class="dmb" onclick="dbCP()">Clear Parts</button><button class="dmb" onclick="dbCU()">Clear PUs</button>
+</div>
+<script src="src/game.js"></script>
+</body>
+</html>
