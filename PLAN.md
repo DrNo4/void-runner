@@ -5,7 +5,7 @@ hostile sectors of space: fight, collect, upgrade at a hub, survive bosses, and 
 permanent upgrades (Star Charts) between runs.
 
 - **Goal:** simple to run (double-click `index.html`), light on hardware, heavy on fun/imagery.
-- **Stack:** single HTML file, vanilla JS + Canvas 2D, zero dependencies, works offline / from `file://`.
+- **Stack:** `index.html` + `src/game.js` (one plain `<script src>` tag — no build step, no modules), vanilla JS + Canvas 2D, zero dependencies, works offline / from `file://`.
 - **Persistence:** `localStorage` (versioned key `voidrunner_v1`), try/catch guarded with in-memory fallback.
 
 ---
@@ -29,7 +29,7 @@ permanent upgrades (Star Charts) between runs.
 - **Shields** 50 base, regenerate after 3s without taking damage
 - **Heat** — weapons build heat; overheating locks weapons for ~1.5s; heat sink/bleed upgrades reduce
 - **Dash** — Space key: burst in movement/aim direction, 0.15s invulnerability, 1s cooldown (engine upgrades improve)
-- **Controls** — WASD/arrows move, mouse aim, left-click (hold) fire, Space dash, Esc pause, F2 debug, M mute
+- **Controls** — WASD/arrows move, mouse aim, left-click (hold) fire, Space dash, Esc pause, T debug, M mute
 - **Customization** — hull color varies by sector/variant; ship variants from meta tree (see §11)
 
 ---
@@ -195,12 +195,12 @@ Earned: each sector cleared (≈2) + boss kills (≈10) + game-over pity (≈ se
 
 ## 11. Hard Constraints (local-playability)
 
-1. **Single `index.html`**, everything inline, **zero network/fetch, no ES modules, no CDN** — must run by double-click from `file://`, fully offline.
+1. **Two files: `index.html` + `src/game.js`** (plain `<script src>` reference, no build step), **zero network/fetch, no ES modules, no CDN** — must run by double-click from `file://`, fully offline.
 2. **localStorage guarded** in try/catch; on failure the game degrades to "no persistence", never crashes. Versioned key `voidrunner_v1`; "Reset Save" button on title.
 3. **Performance caps:** ≤14 enemies, ≤800 particles, clamped `dt` (max 50ms).
 4. **Auto-pause** on `document.hidden` / tab switch.
 5. **Input hygiene:** Space/arrows don't scroll page; aim freezes at last angle when mouse leaves canvas; mousedown outside combat never fires.
-6. **Debug menu (F2):** jump to sector N, spawn any enemy/boss, grant credits, toggle invulnerable, clear enemies — for fast testing and player experimentation.
+6. **Debug menu (T):** jump to sector N, spawn any enemy/boss, grant credits, toggle invulnerable, clear enemies — for fast testing and player experimentation.
 
 ---
 
@@ -209,7 +209,7 @@ Earned: each sector cleared (≈2) + boss kills (≈10) + game-over pity (≈ se
 - **M1 — core loop:** canvas/loop, ship movement + dash + shoot, 3 enemy types (Scout, Raider, Cruiser), 1 sector, basic scoring, title + game over.
 - **M2 — combat depth:** all 6 enemy types, all 3 bosses w/ 3 phases, all power-ups, combo system, sector themes, boss alarm + juice.
 - **M3 — progression:** full hub shop, Star Charts, Hangar/tech tree, ship variants, lore, high scores.
-- **M4 — polish:** CRT overlay, audio, particles/shake tuning, debug menu, balance pass, F2 debug, self-review checklist.
+- **M4 — polish:** CRT overlay, audio, particles/shake tuning, debug menu, balance pass, T debug key, self-review checklist.
 
 ---
 
@@ -238,7 +238,7 @@ Nothing in the core loop (M1) gets cut.
 2. Complete loop plays: Title → 9 sectors (3 boss fights) → Game Over → meta progression persisted → next run starts unlocked.
 3. High scores work in a normal browser session; fail gracefully if storage is blocked.
 4. All enemies spawn per §8, all 3 bosses have 3 phases, all 6 power-ups can spawn.
-5. F2 debug menu responds.
+5. T debug menu responds.
 6. Steady frame rate with swarm + boss + heavy particles alive at once.
 
 ---
@@ -252,5 +252,50 @@ Nothing in the core loop (M1) gets cut.
 - **In-arena power-ups: Yes**
 - **Bosses: Yes** (every 3rd sector)
 - **Dash with brief i-frames: Yes** (Space)
+
+---
+
+## 17. Agreed Fix List (shipped, 2026-11-18)
+
+Canonical specs for the six agreed fixes. Where they conflict with earlier
+aspirational tables (e.g. §6 rate/heat columns, §7 "Shield Capacitor +20"),
+**this section and `src/game.js` are the source of truth**, and each is covered
+by an effect-assertion test (`tests/harness.js`, sections AC–AI).
+
+1. **Engine Boost** — +8% ship speed per level, *single application*:
+   `spd = base × (1 + levels × 0.08)`. (Test: AG)
+2. **Shield Capacitor** — +10 max shield per level, **capped at level 5**
+   (base 50 → 100; Tank Hull 70 → 120). Hub shows MAX past level 5 and the
+   purchase is refused. (Test: AD)
+3. **Main Gun level 2 = Pulse Cannon** — 2 rounds × 22 dmg per shot
+   (level 1 = one round of 30). Fire rate / heat use the shared main-gun
+   formula in code. (Test: AE)
+4. **Spread** — projectiles only: adds 2 bullets at the same per-round damage.
+   No hidden damage multipliers on impact (bullet damage is applied as stored).
+   (Test: AF)
+5. **Single live source** — dead files `gen_game.py` and `src/main.js` deleted;
+   `src/game.js` is the only live script, loaded by `index.html`.
+6. **Debug key is `T`** — `keydown`/`keyup` match on `event.code`
+   (keyCode kept as fallback); every UI label and test event uses T.
+
+Also in this fix wave (each with a test):
+
+- High-score list keeps the best and evicts the lowest (top-10 cap) — AC
+- Death path owned by **one handler** (`uWB`), checked **before** the
+  wave-complete return, so a clearing wave + simultaneous hit ends as
+  SHIP DESTROYED with no credit for that sector — V, T
+- Auto-pause on `document.hidden` — AH
+- Loop hardening: 3 consecutive failing frames → hard stop (no crash loop),
+  counter re-arms on a clean frame — AI
+- Input migrated to `event.code`; score history retained (trailing entries kept, best kept)
+
+### 17.1 Known issues / dead fields
+
+- Persisted meta fields with **no purchase path** — retained only for
+  save compatibility, never read or never set: `hullLv`, `repairLv`,
+  `maxHpExtra`, `shieldExtra`, and `speed` (read in `uPl` as a 1.25× speed
+  bonus, but nothing in the UI can ever set it true — dead in practice).
+- `§6` rate/heat/level-cost tables are the original design intent; shipped
+  numbers differ (see code + tests as authoritative).
 
 *Plan v1 — 2026-11-16. Approved for implementation.*

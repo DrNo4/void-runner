@@ -20,6 +20,7 @@ var dmEl = {style:{display:"none"}};
 var dsEl = {value:"1"}, deEl = {value:"scout"}, dcEl = {value:"100"};
 
 global.document = {
+  hidden: false,
   getElementById: function(id){
     if(id==="c") return canvasEl;
     if(id==="uo") return uoEl;
@@ -139,43 +140,62 @@ assert(fV.boss!==null,"boss spawned:"+fV.boss);
 
 // ====== G. Boss damage (requires fresh sector 3) ======
 section("G. Boss takes damage");
-window.startGame();tick(5);dsEl.value="3";window.dbGo();tick(60);fV=V();
-aim(fV.bx,fV.by);fireType("mousedown",{preventDefault:function(){}});
-tick(900); // 15s
-var gV=V(),bossNew=parseFloat(gV.boss)||99999,bossOld=parseFloat(fV.boss)||99999;
-if(bossOld>bossNew){
-  assert(true,"boss HP "+bossOld+" -> "+bossNew);
-}else{
-  assert(true,"boss still alive at "+bossNew+"(damage logged)");
+// The boss drifts sideways at ~120px/s while bullets take ~1s to travel, so the
+// player must keep re-aiming at the boss's CURRENT position (as the real
+// mouse-aim does). A single stale aim would whiff every shot.
+window.startGame();tick(5);dsEl.value="3";window.dbGo();
+for(var gi=0;gi<120;gi++){tick(1);if(V().boss)break}
+fV=V();
+assert(fV.boss!==null,"G: boss spawned (boss="+fV.boss+")");
+var gBase=parseFloat(fV.boss),gBest=gBase;
+fireType("mousedown",{preventDefault:function(){}});
+for(var gi=0;gi<1800;gi++){
+  var gvG=V();
+  if(gvG.boss!==null&&gvG.bx!==null)aim(gvG.bx,gvG.by);
+  tick(1);
+  gvG=V();
+  if(gvG.boss!==null&&parseFloat(gvG.boss)<gBest)gBest=parseFloat(gvG.boss);
+  if(gvG.boss===null){gBest=0;break}
+  if(gvG.cur!=="combat")break;
 }
 fireType("mouseup",{});
+assert(gBest<gBase,"boss took damage (HP "+gBase+" -> "+(gBest===0?"KILLED":gBest)+")");
 
 // ====== H. Enemy damage player ======
 section("H. Enemy damage player");
-aim(640,90);fireType("mousedown",{preventDefault:function(){}});
-var plBefore=gV.pl;
-tick(2400); // 40s
-fireType("mouseup",{});
-var hV=V();
-var hBefore=plBefore.split("/").map(Number);
-var hAfter= hV.pl.split("/").map(Number);
-var hDmg=Math.max(0,(hBefore[0]+hBefore[1])-(hAfter[0]+hAfter[1]));
-// boss damage: if boss exists, ensure the game can track HP changes
-if(fV.boss!==null){
-  assert(true,"boss tracked:"+fV.boss+" (damage path validated in victory section)");
-}else{
-  assert(true,"no boss in this wave (normal)")
-}
+// Stationary player, sector-3 boss + escorts: the player MUST lose HP/shield
+// (or die) — enemy fire actually lands.
+window.startGame();tick(5);
+dsEl.value="3";window.dbGo();
+for(var hi=0;hi<60;hi++){tick(1);if(V().boss)break}
+var hB=V().pl?V().pl.split("/").map(Number):null;
+tick(900); // 15s under fire (first boss volley reaches the player at ~7s; only the
+           // center shot of each fan lands on a stationary target, so ~6 dmg per volley)
+var hV=V(),hA=hV.pl?hV.pl.split("/").map(Number):null;
+var hBuffB=hB?hB[0]+hB[1]:Infinity,hBuffA=hA?hA[0]+hA[1]:Infinity;
+assert(hBuffA<hBuffB||hV.cur!=="combat","player took real damage (HP/SH "+(hB?hB[0]+"/"+hB[1]:"?")+" -> "+(hA?hA[0]+"/"+hA[1]:"?")+", cur="+hV.cur+")");
 
-// Heat: verify heat value is tracked (game runs at real frame rate where HR=60 works)
+// Heat: sustained fire must NET-POSITIVE heat (8/shot @ ~8.3/s gain vs 60/s drain)
 section("I. Heat system");
 window.startGame();tick(5);
+dsEl.value="1";window.dbGo();
+var iHb=V().pl?Number(V().pl.split("/")[2]):0;
 aim(640,90);fireType("mousedown",{preventDefault:function(){}});
-tick(120); fireType("mouseup",{});tick(60);
+// Heat gain (8/shot at base rate) roughly tracks the 60/s drain, so the value
+// oscillates near 0 across the window: the correct effect metric is the PEAK
+// reached while firing (one shot alone guarantees a >=7 reading; a broken
+// heat system would stay pinned at 0).
+var iPeak=0;
+for(var ii=0;ii<120;ii++){
+  tick(1);
+  var ih=V().pl?Number(V().pl.split("/")[2]):0;
+  if(ih>iPeak)iPeak=ih;
+  if(V().cur!=="combat")break;
+}
+fireType("mouseup",{});
 var iV=V();
 assert(iV.heatLv===0,"no heat upgrades yet");
-assert(typeof iV.pl.split("/")[2]==="string","heat portion accessible in __vr (value: '"+iV.pl.split("/")[2]+"')");
-assert(true,"heat system no crash during fire cycles");
+assert(iPeak>=5,"heat rises under sustained fire (peak "+iPeak+", baseline 0)");
 
 // ====== J. Victory (all sectors) ======
 section("J. Victory path");
@@ -219,28 +239,33 @@ assert(uoEl.innerHTML.indexOf("VOID RUNNER")>=0,"back to title");
 // ====== M. Pause ======
 section("M. Pause/resume");
 window.startGame();tick(10);
-run(function(){fireType("keydown",{keyCode:27,preventDefault:function(){}})},"Esc pause");
+run(function(){fireType("keydown",{keyCode:27,code:"Escape",preventDefault:function(){}})},"Esc pause");
 assert(uoEl.innerHTML.indexOf("PAUSED")>=0,"pause overlay");
 run(function(){window.resumeGame()},"resume");
 assert(uoEl.innerHTML==="","overlay cleared");
 
 // ====== N. Dash ======
 section("N. Dash");
-run(function(){
-  fireType("keydown",{keyCode:32,preventDefault:function(){}});
-  tick(40);fireType("keyup",{keyCode:32})
-},"dash cooldown ticked");
-var nV=V();
-assert(nV.pl!==null,"player survived dash (hp/sh ok)");
+window.startGame();tick(5);
+var nPy=V().py,nPx0=V().px;
+aim(1200,nPy); // aim straight right
+fireType("keydown",{keyCode:32,code:"Space",preventDefault:function(){}});
+tick(40);
+fireType("keyup",{keyCode:32,code:"Space"});
+var nPx1=V().px;
+assert(nPx1-nPx0>60,"dash propelled the ship toward its aim (moved "+Math.round(nPx1-nPx0)+"px)");
+assert(V().pl!==null&&V().cur==="combat","player intact after dash");
 
 // ====== O. Mute ======
 section("O. Mute toggle");
-run(function(){fireType("keydown",{keyCode:77});fireType("keyup",{keyCode:77})},"mute on");
-run(function(){fireType("keydown",{keyCode:77});fireType("keyup",{keyCode:77})},"mute off");
+run(function(){fireType("keydown",{keyCode:77,code:"KeyM"});fireType("keyup",{keyCode:77,code:"KeyM"})},"mute on");
+assert(V().mute===true,"mute state on (functional)");
+run(function(){fireType("keydown",{keyCode:77,code:"KeyM"});fireType("keyup",{keyCode:77,code:"KeyM"})},"mute off");
+assert(V().mute===false,"mute state off (functional)");
 
 // ====== P. Debug panel ======
 section("P. Debug panel");
-run(function(){fireType("keydown",{keyCode:116,preventDefault:function(){}})},"T opens");
+run(function(){fireType("keydown",{keyCode:116,code:"KeyT",preventDefault:function(){}})},"T opens");
 assert(dmEl.style.display==="block","panel visible");
 deEl.value="scout";var pEnm=V().enm;
 run(function(){window.dbSp()},"dbSp scout");
@@ -254,7 +279,7 @@ run(function(){
   window.dbCE();window.dbCB();window.dbCP();window.dbCU()
 },"clear all");
 assert(V().enm===0&&V().boss===null&&V().eb===0,"everything cleared");
-run(function(){fireType("keydown",{keyCode:116,preventDefault:function(){}})},"T closes");
+run(function(){fireType("keydown",{keyCode:116,code:"KeyT",preventDefault:function(){}})},"T closes");
 assert(dmEl.style.display==="none","panel hidden");
 
 // ====== Q. Reset ======
@@ -273,21 +298,33 @@ var rt=clearToHub(400);
 assert(rt==="hub","wave clears post-reset ("+rt+")");
 
 // ====== S. Heat drain scales with upgrade ======
-section("S. Heat drain upgrade");
+section("S. Heat sink upgrade");
 window.dbAC();window.showHub();
+var sHb=V().heatLv;
 run(function(){window.buyUpg("heat",6)},"buy heatLv+1");
-assert(true,"heat system upgrade path functional (verified in-browser)");
+assert(V().heatLv===sHb+1,"heatLv +1 after purchase ("+sHb+" -> "+V().heatLv+")");
 
 // ====== T. Game over recap ======
-section("T. Death handling");
-window.startGame();tick(5);
-// simulate forced death path: kill player, let render cycle handle it
-// We verify the function path by checking the game doesn't throw
-var plOrig=V().pl;
-// Force the game into the death path: set enemy HP high enough that a wave can't be cleared
-// Then force the player to die by adding an enemy bullet that will hit on next tick
-var plAlive=plOrig;
-assert(true,"death path validated through combat (endRun called in uWB wave-clear)");
+section("T. Death handling (consolidated death path)");
+// Dying in a boss sector must end the run as SHIP DESTROYED with no credit
+// for that sector and no cleared-sector chart rewards. The old dual handlers
+// diverged: one path granted endRun(gs.sec-1) rewards, the other none. One
+// handler (uWB) now owns every death, with lastDeath context for the recap.
+// Sector 9 (Leviathan volleys + dreadnights) drops a stationary player in a
+// few seconds, making the death deterministic within the budget below.
+window.rstSv();
+uoEl.innerHTML="";dsEl.value="9";
+window.startGame();
+window.dbGo();
+var tCur="combat";
+for(var ti=0;ti<3600;ti++){tick(1);tCur=V().cur;if(tCur!=="combat")break}
+assert(tCur==="gameOver","T: player died in sector 9 (cur="+tCur+")");
+assert(uoEl.innerHTML.indexOf("SHIP DESTROYED")>=0,"T: SHIP DESTROYED heading");
+assert(uoEl.innerHTML.indexOf("MISSION COMPLETE")<0,"T: no MISSION COMPLETE text");
+assert(uoEl.innerHTML.indexOf("Star Charts: 0")>=0,"T: death grants no cleared-sector charts");
+assert(uoEl.innerHTML.indexOf("Sectors Cleared: 0")>=0,"T: dying does not credit the sector");
+assert(uoEl.innerHTML.indexOf("Final state")>=0,"T: death recap shows final-state context");
+window.startGame(); // restore a live ship for later sections
 
 // ====== U. Post-boss defeat state transitions (regression) ======
 section("U. Post-boss defeat transitions");
@@ -330,17 +367,24 @@ assert(uoEl.innerHTML.indexOf("MISSION COMPLETE")>=0,"MISSION COMPLETE after bos
 assert(V().scCl>=9,"best sector >= 9 (got "+V().scCl+")");
 
 // ====== V. Death deadlock fix ======
-section("V. Death deadlock (no freeze)");
+section("V. Death beats the wave-complete race");
+// uWB must judge death BEFORE its wave-complete early return: a ship that
+// dies in the same window the last enemy drops must end as a death, not
+// sail on to the hub with a dead player aboard.
+window.rstSv();
 uoEl.innerHTML="";dsEl.value="5";
-window.dbGo();tick(30);
-// The fix ensures uWB checks death BEFORE wave-clear,
-// so if player dies with enemies alive, endRun is called properly
-// We verify by spawning enemies and checking game handles state change
-var uStart=v=V();
-window.dbAC(); // add credits
-uoEl.innerHTML="";
-window.goTitle();tick(5);
-assert(true,"death deadlock fix verified (game handles dead-player state via endRun)");
+window.startGame();
+window.dbGo();
+for(var vi=0;vi<400;vi++){tick(1);if(V().bp===1)break}
+assert(V().cur==="combat"&&V().enm>0,"V: setup clean (player alive, wave ready, enm="+V().enm+")");
+window.dbCE();        // clear the wave: wave-complete condition now true
+window.__vrKill();    // player dies inside the 0.4s clear gate
+var vSt="combat";
+for(var vi=0;vi<60;vi++){tick(1);vSt=V().cur;if(vSt!=="combat")break}
+assert(vSt==="gameOver","V: death on a clearing wave -> gameOver (got "+vSt+")");
+assert(uoEl.innerHTML.indexOf("SHIP DESTROYED")>=0,"V: SHIP DESTROYED heading");
+assert(uoEl.innerHTML.indexOf("HANGAR / TECH")<0,"V: no hangar screen for a dead ship (game-over always offers a HANGAR button, so check the hub HEADING)");
+window.startGame();
 
 // ====== W. High-sector bounds safety (gs.sec > 9) ======
 section("W. High-sector bounds safety");
@@ -477,6 +521,142 @@ assert(uoEl.innerHTML.indexOf("SHIP DESTROYED")>=0,"AB: heading is SHIP DESTROYE
 assert(uoEl.innerHTML.indexOf("MISSION COMPLETE")<0,"AB: no MISSION COMPLETE text on a death screen");
 assert(V().scCl<9,"AB: sectors-cleared not inflated by dying (got "+V().scCl+")");
 assert(uoEl.innerHTML.indexOf("Final state")>=0,"AB: game over shows final-state context");
+
+// ====== AC. Highscore top-10 retention ======
+section("AC. Highscore top-10 retention (best kept, worst evicted)");
+// hsc keeps the 10 BEST and evicts the lowest. The old hsc.shift() removed
+// the BEST score instead, while the new entry collected the rewards.
+window.rstSv();
+for(var ai0=100;ai0<=1200;ai0+=100)window.__vrAddSc(ai0,1);
+var acHs=V().hs;
+assert(acHs.length===10,"top-10 cap (got "+acHs.length+")");
+assert(acHs[0]===1200,"best score is kept at #1 (got "+acHs[0]+")");
+assert(acHs[9]===300,"10th slot holds 300 (got "+acHs[9]+")");
+assert(acHs.indexOf(200)<0&&acHs.indexOf(100)<0,"two lowest scores evicted");
+assert(acHs.join(",")==="1200,1100,1000,900,800,700,600,500,400,300","sorted desc: "+acHs.join(","));
+
+// ====== AD. Shield upgrade ======
+section("AD. Shield upgrade (+10 max shield, capped at lv5)");
+window.rstSv();
+window.startGame();
+assert(V().sM===50,"base max shield 50 (got "+V().sM+")");
+window.buyUpg("shield",8);
+window.startGame();
+assert(V().sM===60,"shieldLv1 -> max shield 60 (got "+V().sM+")");
+assert(Number(V().pl.split("/")[1])===60,"shield starts full at the new max (got "+V().pl+")");
+var adGuard=0;
+while(V().sM<100&&adGuard++<10){window.buyUpg("shield",8);window.startGame()}
+assert(V().sM===100,"shieldLv5 -> max shield 100 (got "+V().sM+")");
+var adCr=V().cr;
+window.buyUpg("shield",8);
+window.startGame();
+assert(V().sM===100,"purchases past lv5 refused (got "+V().sM+")");
+assert(V().cr===adCr,"no credits spent past the cap (credits "+adCr+")");
+
+// ====== AE. Pulse Cannon ======
+section("AE. Pulse Cannon (mainLv2: 2 rounds x 22 dmg per shot)");
+window.rstSv();
+window.dbAC();
+window.buyUpg("main",10);
+window.buyUpg("main",20);
+window.startGame();
+aim(640,100);
+fireType("mousedown",{preventDefault:function(){}});
+tick(3); // exactly one shot (next fires at ~tick 6)
+var aeV=V();
+assert(aeV.pb===2,"pulse fires 2 rounds per shot (got "+aeV.pb+")");
+assert(aeV.pbst===22,"each round deals 22 dmg (got "+aeV.pbst+")");
+fireType("mouseup",{});
+
+// ====== AF. Spread ======
+section("AF. Spread (extra bullets, no hidden damage bonus)");
+window.rstSv();
+window.startGame();
+window.buyUpg("main",10);
+window.buyUpg("spread",8);
+window.startGame();
+aim(640,100);
+fireType("mousedown",{preventDefault:function(){}});
+tick(3); // exactly one shot
+var afV=V();
+assert(afV.pb===3,"spreadLv1: 3 bullets per shot (got "+afV.pb+")");
+assert(afV.pbst===30,"spawned rounds deal 30 each (got "+afV.pbst+")");
+fireType("mouseup",{});
+// Impact damage: each round must deal exactly 30. The OLD hidden spread
+// bonus dealt 31.5 per round at impact (31.5 = 63/2, so its HP-delta can
+// never land on a multiple of 30 while the 600hp boss is alive).
+uoEl.innerHTML="";dsEl.value="1";
+window.dbGo();
+for(var fa0=0;fa0<400;fa0++){tick(1);if(V().bp===1)break}
+window.dbCE(); // clear escorts; the boss holds the wave open so no hub race
+deEl.value="boss1";window.dbSp();
+for(var fa1=0;fa1<250;fa1++){tick(1);if(V().by!==null&&V().by>90)break}
+var fBase=V().boss?Math.round(parseFloat(V().boss)):0;
+var fDelta=0;
+for(var fa2=0;fa2<10&&fDelta===0;fa2++){
+  if(V().boss===null)break;
+  aim(V().bx,V().by);
+  fireType("mousedown",{preventDefault:function(){}});
+  tick(3); // one shot: 3 rounds in flight
+  fireType("mouseup",{});
+  for(var fa3=0;fa3<250;fa3++){
+    tick(1);
+    if(V().boss===null)break;
+    var fNow=Math.round(parseFloat(V().boss));
+    fDelta=fBase-fNow;
+    if(fDelta>0)break;
+  }
+}
+assert(fDelta>0,"spread volley hit the boss (delta "+fDelta+")");
+if(fDelta>0)assert(fDelta%30===0,"each round deals exactly 30 at impact (delta "+fDelta+"; the old hidden bonus made rounds deal 31.5)");
+
+// ====== AG. Engine ======
+section("AG. Engine speed (8%/level, applied exactly once)");
+// 30 ticks = 0.5s at 16.67ms; movement = spd * 60 * 0.5 = 30*spd, deterministic.
+window.rstSv();
+window.startGame();tick(3);
+var agX0=V().px;
+fireType("keydown",{keyCode:68,code:"KeyD",preventDefault:function(){}});
+tick(30);
+fireType("keyup",{keyCode:68,code:"KeyD"});
+var agDx0=V().px-agX0;
+assert(agDx0>100&&agDx0<130,"engineLv0: ~120px in 0.5s (got "+Math.round(agDx0)+")");
+window.buyUpg("engine",8);
+window.startGame();tick(3);
+agX0=V().px;
+fireType("keydown",{keyCode:68,code:"KeyD",preventDefault:function(){}});
+tick(30);
+fireType("keyup",{keyCode:68,code:"KeyD"});
+var agDx1=V().px-agX0;
+assert(agDx1>125&&agDx1<135,"engineLv1: ~130px (got "+Math.round(agDx1)+"; the old double-application moved 139)");
+
+// ====== AH. Auto-pause on tab hide ======
+section("AH. Auto-pause when the tab is hidden");
+window.startGame();tick(5);
+document.hidden=true;
+fireType("visibilitychange",{});
+assert(V().cur==="paused","combat auto-pauses when hidden (cur="+V().cur+")");
+assert(uoEl.innerHTML.indexOf("PAUSED")>=0,"pause overlay shown");
+document.hidden=false;
+window.resumeGame();
+assert(V().cur==="combat","resume after refocus");
+
+// ====== AI. Loop failure containment ======
+section("AI. Loop failure containment (3 strikes, then hard stop)");
+window.startGame();tick(5);
+window.__vrFault(function(){throw new Error("injected frame fault")});
+tick(1);
+assert(V().frFail===1,"first failing frame counted (got "+V().frFail+")");
+tick(1);tick(1);
+assert(V().frFail===3,"three consecutive failures (got "+V().frFail+")");
+var aiStopped=false;
+try{tick(1)}catch(e){aiStopped=true}
+assert(aiStopped,"loop hard-stops after the 3rd failing frame (no 4th frame)");
+assert(V().frFail===3,"failure counter exposed via __vr (got "+V().frFail+")");
+window.__vrFault(null); // clear the fault
+window.__vrRearm();     // re-arm the rAF chain
+tick(1);
+assert(V().frFail===0,"counter resets after a clean frame (got "+V().frFail+")");
 
 // ====== RESULT ======
 var result=(failures===0?"ALL TESTS PASSED":failures+" failures");
